@@ -11,7 +11,7 @@ girder serve &
 rabbitmq-server &
 
 # wait for girder to come up and then add an assetstore. An assetstore is needed to handle uploads
-sleep 5
+sleep 10 
 python3 girder_assetstore.py
 
 # force girder worker to run as root because we don't have other users
