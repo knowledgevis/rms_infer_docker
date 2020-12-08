@@ -57,7 +57,7 @@ RUN apt-get -y install tzdata
 #RUN dpkg-reconfigure --frontend noninteractive tzdata
 
 # install mongoDB
-RUN apt-get install gnupg
+RUN apt-get install -y gnupg
 RUN wget -qO - https://www.mongodb.org/static/pgp/server-4.2.asc |  apt-key add -
 RUN echo "deb http://repo.mongodb.org/apt/debian buster/mongodb-org/4.2 main" | tee /etc/apt/sources.list.d/mongodb-org-4.2.list
 RUN apt-get update
