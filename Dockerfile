@@ -56,6 +56,11 @@ RUN apt-get -y install tzdata
 # might want to fix the timezone later by setting tz and running this?
 #RUN dpkg-reconfigure --frontend noninteractive tzdata
 
+# needed to add this after 10/2019 due to change in mongodb setup.  It tries to run systemctl
+# which isn't installed in docker containers
+# see description here: https://stackoverflow.com/questions/63709096/systemctl-not-found-while-building-mongo-image/64949118#64949118
+RUN ln -s /bin/true /usr/local/bin/systemctl
+
 # install mongoDB
 RUN apt-get install -y gnupg
 RUN wget -qO - https://www.mongodb.org/static/pgp/server-4.2.asc |  apt-key add -
