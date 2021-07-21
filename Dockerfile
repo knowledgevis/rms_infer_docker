@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -qy \
 RUN alias python="python3"
 
 RUN apt-get update
+# wget is used for pulling a pre-trained model
 RUN apt-get install -qy wget 
 
 # get pip3 for installations
@@ -103,6 +104,8 @@ RUN pip install opencv-python
 RUN pip install albumentations
 RUN pip install scikit-image
 RUN pip install segmentation_models_pytorch==0.1.0
+# install large_image for reading image formats
+RUN pip install large_image[sources] --find-links https://girder.github.io/large_image_wheels 
 #RUN pip install tensorflow
 #RUN pip install keras
 
@@ -144,6 +147,11 @@ RUN pip install girder_client
 WORKDIR /
 # copy init script(s) over and start all jobs
 COPY . .
+
+# pull a pretrained model
+RUN echo "Downloading a pre-trained model for RMS detection. This may take a few minutes"
+RUN wget https://data.kitware.com/api/v1/item/60f768922fa25629b9c6940b/download
+
 
 ENTRYPOINT ["sh", "startup.sh"]
 
