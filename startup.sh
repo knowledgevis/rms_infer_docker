@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # copy files over because we couldn't copy during the docker build process 
-cp -r /arbor_nova/client/dist /usr/share/girder/static/arbornova
+cp -r /rms_infer_web/client/dist /usr/share/girder/static/arbornova
 
 # copy over images for open sea dragon's pretty buttons
 cp -r images /usr/share/girder/static/arbornova
@@ -15,6 +15,7 @@ rabbitmq-server &
 
 # wait for girder to come up and then add an assetstore. An assetstore is needed to handle uploads
 sleep 10 
+# until curl localhost:8080
 python3 girder_assetstore.py
 
 # force girder worker to run as root because we don't have other users

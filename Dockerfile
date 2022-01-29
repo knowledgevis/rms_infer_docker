@@ -9,16 +9,22 @@ EXPOSE 8080
 
 RUN mkdir /girder
 
+# install supporting libraries.  Also install virtualenv so we can create different 
+# runtime dependency sets. libtiff-dev is included to fix a bug in the native TIFF
+# library bundled with ubuntu (so large_image works better).
+
 RUN apt-get update && apt-get install -qy \
 	apt-utils \
     gcc \
     libpython3-dev \
     git \
     libldap2-dev \
+    libtiff-dev  \
     libsasl2-dev  && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN alias python="python3"
+
 
 RUN apt-get update
 # wget is used for pulling a pre-trained model
@@ -95,7 +101,8 @@ RUN apt-get install -qy r-base-core
 
 # -- install dependencies for Deep Learning scripts. Important to pin the 
 # versions of torch and torchvision, otherwise torch=>=1.6.0 is downloaded, 
-# and torch=1.6.0 requires too new an nvidia driver.  
+# and torch=1.6.0 requires too new an nvidia driver.  This is used to support the
+# girder_worker based apps (segmentation and MYOD1 mutation)
 
 RUN pip install torch==1.4.0
 RUN pip install torchvision==0.5.0
@@ -103,55 +110,97 @@ RUN pip install efficientnet-pytorch==0.6.3
 RUN pip install opencv-python
 RUN pip install albumentations
 RUN pip install scikit-image
-RUN pip install segmentation_models_pytorch==0.1.0
-# install large_image for reading image formats
+RUN pip install segmentation_models_pytorch==0.1.0 --no-dependencies
+RUN pip install timm==0.1.18  --no-dependencies
+RUN pip install torchnet
+# install large_image for reading image formats the find-links helps this run fast
 RUN pip install large_image[sources] --find-links https://girder.github.io/large_image_wheels 
-#RUN pip install tensorflow
-#RUN pip install keras
+RUN pip install pretrainedmodels
 
-# ----- get arbor_nova
-RUN echo 'installing arbor_nova plugin'
+# We need a different dependency stack to run the survivability, since it uses timm=0.3.2. 
+# so create a virtualenv and install the alternative dependencies there.  When the survivability
+# app is run, it is run via shell that uses this environment instead of the "standard" environment
+# used above for the rest of the applications. 
+
+RUN pip install virtualenv
+WORKDIR /
+RUN virtualenv rms_venv
+
+ENV OLDPATH=$PATH
+ENV PATH="/rms_venv/bin:$PATH" 
+RUN pip install girder_client
+RUN pip install opencv-python
+# newer torch versions had errors with the models
+RUN pip install torch==1.7.1  
+RUN pip install scikit-image
+RUN pip install albumentations
+# (it wanted to install torch=1.8.1)
+RUN pip install segmentation_models_pytorch==0.1.3 --no-dependencies 
+RUN pip install pretrainedmodels
+RUN pip install torchvision==0.8.2 --no-dependencies
+RUN pip install efficientnet-pytorch==0.6.3
+RUN pip install timm==0.3.2 --no-dependencies
+RUN pip install openslide-python
+
+# now we are done building the survivability environment, lets go back
+# to the standard path for everything else.  girder and girder_worker 
+# use the standard path.  It is only the remote part of the survivability
+# job that uses the alternative environment.  The remote job will invoke
+# this virtual environment when it runs. 
+
+ENV PATH="$OLDPATH"
+
+# ----- get web app framework (derived from github.com/arborworkfows/arbor_nova)
+RUN echo 'installing rms_infer_web plugin'
 #RUN pip install ansible
 WORKDIR /
-RUN git clone http://github.com/arborworkflows/arbor_nova
-WORKDIR /arbor_nova
-RUN git checkout rhabdo_on_aws
+RUN git clone http://github.com/knowledgevis/rms_infer_web
+WORKDIR /rms_infer_web
+RUN git checkout arbor_survivability
 
 # override the default girder webpage
-WORKDIR /arbor_nova/girder_plugin
+WORKDIR /rms_infer_web/girder_plugin
 RUN pip install -e .
 
 # install the girder_worker jobs
-WORKDIR /arbor_nova/girder_worker_tasks
+WORKDIR /rms_infer_web/girder_worker_tasks
 RUN pip install -e .
 
 # --- install the UI
 RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
 RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
 RUN apt-get update &&  apt-get install -qy yarn
-WORKDIR /arbor_nova/client
+WORKDIR /rms_infer_web/client
 RUN yarn global add @vue/cli
 RUN yarn install
 RUN yarn build
-# gave up on this build time copy because we couldn't reference the dist dir.  the copy has been moved to startup.sh
-#COPY ./dist /arbornova
 
 # now install girder_client, so the startup shell can add an assetstore automatically for girder
 RUN pip install girder_client
 
+# these are things missing from the standard environment
+RUN pip install pandas
+RUN pip install matplotlib
+RUN pip install arrow
+
 # Note about weights for trained networks:  It is the convention to place any trained network weights files 
-# in the top directory, but these weights files are not included in the github repository because of their size. 
-# The copy below will copy all files, so weights files will automatically be included in the container. Any 
-# software that references weights can assume their files for restoration will be in the "root" directory. 
+# in the /rms_infer_web/models directory.  These weights files are not included in the github repository 
+# because of their size. The copy below will copy all files in the development directory, 
+# so weights files will automatically be included in the container. Any software that references weights 
+# can assume their files for restoration will be in the "/rms_infer_web/models directory.
+
+# To build the container again, the user will need to separately aquire and load model weights 
+# into the proper directory before building the container. 
 
 WORKDIR /
 # copy init script(s) over and start all jobs
 COPY . .
 
 # pull a pretrained model
-RUN echo "Downloading a pre-trained model for RMS detection. This may take a few minutes"
-RUN wget https://data.kitware.com/api/v1/item/60f768922fa25629b9c6940b/download
+#RUN echo "Downloading a pre-trained segmentation model for RMS detection. This may take a few minutes"
+#WORKDIR /rms_infer_web/models
+#RUN wget https://data.kitware.com/api/v1/item/60f768922fa25629b9c6940b/download
 
-
+# finish the setup.  This has to initialize the girder subsystem used for data management 
 ENTRYPOINT ["sh", "startup.sh"]
 
