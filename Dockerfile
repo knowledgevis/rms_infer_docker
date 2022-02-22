@@ -75,6 +75,9 @@ RUN echo "deb http://repo.mongodb.org/apt/debian buster/mongodb-org/4.2 main" | 
 RUN apt-get update
 RUN apt-get install -y mongodb-org
 
+# install system dependencies for openslide (used directly by survivability model)
+RUN apt-get install -y python3-openslide
+
 # go to the configuration directory and change the defaults so the website will be visible outside the container
 WORKDIR /girder/girder/conf
 RUN sed -i -r "s/127.0.0.1/0.0.0.0/" girder.dist.cfg
@@ -116,6 +119,7 @@ RUN pip install torchnet
 # install large_image for reading image formats the find-links helps this run fast
 RUN pip install large_image[sources] --find-links https://girder.github.io/large_image_wheels 
 RUN pip install pretrainedmodels
+RUN pip install python-dotenv
 
 # We need a different dependency stack to run the survivability, since it uses timm=0.3.2. 
 # so create a virtualenv and install the alternative dependencies there.  When the survivability
@@ -139,7 +143,7 @@ RUN pip install segmentation_models_pytorch==0.1.3 --no-dependencies
 RUN pip install pretrainedmodels
 RUN pip install torchvision==0.8.2 --no-dependencies
 RUN pip install efficientnet-pytorch==0.6.3
-RUN pip install timm==0.3.2 --no-dependencies
+RUN pip install timm==0.3.2
 RUN pip install openslide-python
 
 # now we are done building the survivability environment, lets go back
@@ -151,7 +155,7 @@ RUN pip install openslide-python
 ENV PATH="$OLDPATH"
 
 # ----- get web app framework (derived from github.com/arborworkfows/arbor_nova)
-RUN echo 'installing rms_infer_web plugin'
+RUN echo 'installing the rms_infer_web plugin with survivability'
 #RUN pip install ansible
 WORKDIR /
 RUN git clone http://github.com/knowledgevis/rms_infer_web
@@ -193,7 +197,13 @@ RUN pip install arrow
 # into the proper directory before building the container. 
 
 WORKDIR /
+
+# create a directory for the model files to be copied into
+#RUN makedir models
+#RUN makedir sample_images
+
 # copy init script(s) over and start all jobs
+RUN echo "copying model files and sample images into the container"
 COPY . .
 
 # pull a pretrained model
