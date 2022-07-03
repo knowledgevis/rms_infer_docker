@@ -1,10 +1,12 @@
 #!/bin/sh
 
 # copy files over because we couldn't copy during the docker build process 
-cp -r /rms_infer_web/client/dist /usr/share/girder/static/arbornova
+#cp -r /rms_infer_web/client/dist /usr/share/girder/static/arbornova
+cp -r /rms_infer_web/client/dist /original_venv/share/girder/static/arbornova
 
 # copy over images for open sea dragon's pretty buttons
-cp -r images /usr/share/girder/static/arbornova
+#cp -r images /usr/share/girder/static/arbornova
+cp -r images /original_venv/share/girder/static/arbornova
 
 # copy over any model weights to the destination directory. The weights are read during model execution.
 cp -r models rms_infer_web/models
@@ -33,5 +35,5 @@ python3 girder_sample_images.py
 cd /rms_infer_web
 
 export C_FORCE_ROOT=True
-/usr/bin/python3 -m girder_worker --concurrency=1 --max-tasks-per-child=1
+python3 -m girder_worker --concurrency=1 --max-tasks-per-child=1
 

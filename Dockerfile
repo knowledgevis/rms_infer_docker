@@ -1,5 +1,5 @@
 
-FROM nvidia/cuda:10.0-base
+FROM nvidia/cuda:11.0-base
 
 LABEL maintainer="KnowledgeVis, LLC <curtislisle@knowledgevis.com>"
 
@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -qy \
 
 RUN alias python="python3"
 
+# fix CUDA keys 
+RUN apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/3bf863cc.pub
 
 RUN apt-get update
 # wget is used for pulling a pre-trained model
@@ -41,25 +43,31 @@ RUN apt-get install -qy curl
 RUN curl  -sL https://deb.nodesource.com/setup_12.x | bash
 RUN apt-get install -qy nodejs
 
-# download girder source code
-RUN git clone https://github.com/girder/girder.git  /girder
-
-WORKDIR /girder
 
 # See http://click.pocoo.org/5/python3/#python-3-surrogate-handling for more detail on
 # why this is necessary.
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# TODO: Do we want to create editable installs of plugins as well?  We
+# avoid using the root environment in the container
+RUN pip install virtualenv
+RUN virtualenv /original_venv
+ENV ORIGINALPATH=$PATH
+ENV PATH="/original_venv/bin:$PATH"
+
+# download girder source code
+RUN git clone https://github.com/girder/girder.git  /girder
+
+WORKDIR /girder
+
 # will need a plugin only requirements file for this.
-RUN pip install --upgrade --upgrade-strategy eager --editable .
+RUN pip install --upgrade --editable .
 RUN pip install girder-worker[girder]
 RUN girder build
 
 # set time zone for mongodb
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get -y install tzdata
+#RUN apt-get -y install tzdata
 # might want to fix the timezone later by setting tz and running this?
 #RUN dpkg-reconfigure --frontend noninteractive tzdata
 
@@ -99,8 +107,8 @@ RUN apt-get install -qy --fix-missing rabbitmq-server
 RUN pip install .[girder_io,worker]
 
 # --- install R since it is used by arbor_nova
-RUN apt-get install -qy r-base
-RUN apt-get install -qy r-base-core
+#RUN apt-get install -qy r-base
+#RUN apt-get install -qy r-base-core
 
 # -- install dependencies for Deep Learning scripts. Important to pin the 
 # versions of torch and torchvision, otherwise torch=>=1.6.0 is downloaded, 
@@ -126,12 +134,13 @@ RUN pip install python-dotenv
 # app is run, it is run via shell that uses this environment instead of the "standard" environment
 # used above for the rest of the applications. 
 
-RUN pip install virtualenv
+
 WORKDIR /
 RUN virtualenv rms_venv
 
 ENV OLDPATH=$PATH
-ENV PATH="/rms_venv/bin:$PATH" 
+ENV PATH="/rms_venv/bin:$ORIGINALPATH" 
+
 RUN pip install girder_client
 RUN pip install opencv-python
 # newer torch versions had errors with the models
@@ -160,7 +169,7 @@ RUN echo 'installing the rms_infer_web plugin with survivability'
 WORKDIR /
 RUN git clone http://github.com/knowledgevis/rms_infer_web
 WORKDIR /rms_infer_web
-RUN git checkout arbor_survivability
+RUN git checkout aws
 
 # override the default girder webpage
 WORKDIR /rms_infer_web/girder_plugin
@@ -169,6 +178,8 @@ RUN pip install -e .
 # install the girder_worker jobs
 WORKDIR /rms_infer_web/girder_worker_tasks
 RUN pip install -e .
+
+RUN pip freeze
 
 # --- install the UI
 RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
@@ -203,7 +214,7 @@ WORKDIR /
 #RUN makedir sample_images
 
 # copy init script(s) over and start all jobs
-RUN echo "copying model files and sample images into the container"
+RUN echo "copying models files and sample images into the container"
 COPY . .
 
 # pull a pretrained model
