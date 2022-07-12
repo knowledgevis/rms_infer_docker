@@ -9,6 +9,14 @@ EXPOSE 8080
 
 RUN mkdir /girder
 
+# fix CUDA signatures 
+
+RUN rm /etc/apt/sources.list.d/cuda.list
+RUN apt-key del 7fa2af80
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
+
+
 # install supporting libraries.  Also install virtualenv so we can create different 
 # runtime dependency sets. libtiff-dev is included to fix a bug in the native TIFF
 # library bundled with ubuntu (so large_image works better).
