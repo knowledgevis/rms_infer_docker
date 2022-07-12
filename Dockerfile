@@ -177,7 +177,7 @@ RUN echo 'installing the rms_infer_web plugin with survivability'
 WORKDIR /
 RUN git clone http://github.com/knowledgevis/rms_infer_web
 WORKDIR /rms_infer_web
-RUN git checkout aws
+#RUN git checkout aws
 
 # override the default girder webpage
 WORKDIR /rms_infer_web/girder_plugin
